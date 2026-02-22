@@ -1,6 +1,11 @@
 # Dilu 脚手架工具
 
+[![GitHub](https://img.shields.io/github/license/baowk/dilu-ctl)](https://github.com/baowk/dilu-ctl)
+[![Go Report Card](https://goreportcard.com/badge/github.com/baowk/dilu-ctl)](https://goreportcard.com/report/github.com/baowk/dilu-ctl)
+
 这是一个用于快速创建 Dilu 项目的脚手架工具。
+
+GitHub 仓库地址: https://github.com/baowk/dilu-ctl
 
 ## 功能特性
 
@@ -12,29 +17,45 @@
 - ✅ 支持自定义项目输出路径
 - ✅ 智能的错误处理和提示信息
 
-## 安装
+## 安装方式
 
-### 方法一：直接编译
+### 方式一：使用 Go Install（推荐）
 ```bash
-go build -o dilu-ctl
+go install github.com/baowk/dilu-ctl@latest
 ```
 
-### 方法二：安装到 GOPATH
+安装完成后，可直接使用：
 ```bash
+dilu-ctl -h
+```
+
+### 方式二：从源码编译
+```bash
+# 克隆仓库
+git clone https://github.com/baowk/dilu-ctl.git
+cd dilu-ctl
+
+# 编译
+go build -o dilu-ctl
+
+# 或者安装到 GOPATH
 go install
 ```
+
+### 方式三：直接下载二进制文件
+从 [Releases](https://github.com/baowk/dilu-ctl/releases) 页面下载对应平台的二进制文件。
 
 ## 使用方法
 
 ### 查看帮助
 ```bash
-./dilu-ctl -h
+dilu-ctl -h
 ```
 
 ### 基本用法
 
 ```bash
-./dilu-ctl -n 项目名称
+dilu-ctl -n 项目名称
 ```
 
 ### 参数说明
@@ -50,35 +71,23 @@ go install
 
 1. **创建基础项目到当前目录**：
 ```bash
-./dilu-ctl -n myproject
+dilu-ctl -n myproject
 ```
 
 2. **创建项目到指定目录**：
 ```bash
-./dilu-ctl -n myproject -o /path/to/output
+dilu-ctl -n myproject -o /path/to/output
 ```
 
 3. **创建完整项目到指定目录**：
 ```bash
-./dilu-ctl -n myproject -a -o /path/to/output
+dilu-ctl -n myproject -a -o /path/to/output
 ```
 
 4. **查看帮助信息**：
 ```bash
-./dilu-ctl -h
+dilu-ctl -h
 ```
-
-## 工作流程
-
-1. 📂 根据项目名称和输出路径创建新目录
-2. 🔧 根据 `-a` 参数确定要克隆的 Git 仓库
-3. 📥 克隆代码到项目目录
-4. 🔍 递归遍历所有 `.go` 文件
-5. 🔄 智能替换本地包导入（保持外部依赖不变）
-6. 🔄 替换代码中的类型引用 `Dilu` → `ProjectName`
-7. 📝 更新 `go.mod` 文件中的 module 名称
-8. 🗑️ 清理 `.git` 目录（移除原始仓库历史）
-9. ✅ 完成项目初始化
 
 ## 包替换规则
 
@@ -101,6 +110,18 @@ import "github.com/gin-gonic/gin"           // 保持不变
 ```go
 DiluApp := NewDiluApplication()   // → MyprojectApp := NewMyprojectApplication()
 ```
+
+## 工作流程
+
+1. 📂 根据项目名称和输出路径创建新目录
+2. 🔧 根据 `-a` 参数确定要克隆的 Git 仓库
+3. 📥 克隆代码到项目目录
+4. 🔍 递归遍历所有 `.go` 文件
+5. 🔄 智能替换本地包导入（保持外部依赖不变）
+6. 🔄 替换代码中的类型引用 `Dilu` → `ProjectName`
+7. 📝 更新 `go.mod` 文件中的 module 名称
+8. 🗑️ 清理 `.git` 目录（移除原始仓库历史）
+9. ✅ 完成项目初始化
 
 ## 注意事项
 
@@ -138,6 +159,20 @@ ls -la /path/to/target/directory
 1. 检查网络连接
 2. 验证GitHub SSH密钥配置
 3. 使用HTTPS方式克隆（需要修改源码）
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+1. Fork 本仓库
+2. 创建您的特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交您的更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启一个 Pull Request
+
+## License
+
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
 
 ## 开发者信息
 

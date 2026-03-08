@@ -1,13 +1,25 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"flag"
 	"fmt"
+	"go/format"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
+	"time"
 )
+
+const gitCommandTimeout = 2 * time.Minute
+
+var projectNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*(/[a-z0-9][a-z0-9_-]*)*$`)
 
 func main() {
 	var projectName string
@@ -47,6 +59,10 @@ func main() {
 	if projectName == "" {
 		fmt.Fprintln(os.Stderr, "错误: 必须指定项目名称 (-n)")
 		flag.Usage()
+		os.Exit(1)
+	}
+	if err := validateProjectName(projectName); err != nil {
+		fmt.Fprintf(os.Stderr, "错误: 无效的项目名称 '%s': %v\n", projectName, err)
 		os.Exit(1)
 	}
 
@@ -251,15 +267,14 @@ func getProtocolName(useHTTPS bool) string {
 
 // cloneRepository 克隆仓库
 func cloneRepository(repoURL, targetPath string, useHTTPS bool) error {
-	var cmd *exec.Cmd
-
+	args := []string{"clone", repoURL}
 	if targetPath == "." {
-		cmd = exec.Command("git", "clone", repoURL, ".")
+		args = append(args, ".")
 	} else {
-		cmd = exec.Command("git", "clone", repoURL, targetPath)
+		args = append(args, targetPath)
 	}
 
-	output, err := cmd.CombinedOutput()
+	output, err := runGitCommand(args...)
 	if err != nil {
 		// 如果是HTTPS认证失败，给出友好提示
 		if useHTTPS && (strings.Contains(string(output), "Authentication failed") ||
@@ -278,8 +293,8 @@ func cloneRepository(repoURL, targetPath string, useHTTPS bool) error {
 
 // isGitAvailable 检查Git是否可用
 func isGitAvailable() bool {
-	cmd := exec.Command("git", "--version")
-	return cmd.Run() == nil
+	_, err := runGitCommand("--version")
+	return err == nil
 }
 
 // renamePackages 递归遍历目录，重命名所有包含"dilu"的包导入
@@ -290,11 +305,8 @@ func renamePackages(projectName string) error {
 		}
 
 		// 跳过隐藏目录和.git目录
-		if strings.HasPrefix(info.Name(), ".") && info.IsDir() {
-			if info.Name() == ".git" {
-				return filepath.SkipDir
-			}
-			return nil
+		if info.IsDir() && path != "." && strings.HasPrefix(info.Name(), ".") {
+			return filepath.SkipDir
 		}
 
 		// 只处理.go文件
@@ -315,17 +327,39 @@ func replaceInFile(filePath, projectName string) error {
 		return err
 	}
 
-	originalContent := string(content)
-	newContent := originalContent
-
-	newContent = strings.ReplaceAll(newContent, "\"dilu/", "\""+strings.ToLower(projectName)+"/")
-
-	// 如果内容有变化才写入文件
-	if newContent != originalContent {
-		return os.WriteFile(filePath, []byte(newContent), 0644)
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, filePath, content, parser.ParseComments)
+	if err != nil {
+		return err
 	}
 
-	return nil
+	updated := false
+	moduleName := strings.ToLower(projectName)
+	for _, imp := range file.Imports {
+		importPath, unquoteErr := strconv.Unquote(imp.Path.Value)
+		if unquoteErr != nil {
+			continue
+		}
+		if strings.HasPrefix(importPath, "dilu/") {
+			imp.Path.Value = strconv.Quote(moduleName + "/" + strings.TrimPrefix(importPath, "dilu/"))
+			updated = true
+		}
+	}
+
+	if !updated {
+		return nil
+	}
+
+	raw, err := formatAST(fset, file)
+	if err != nil {
+		return err
+	}
+	formatted, err := format.Source(raw)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(filePath, formatted, 0644)
 }
 
 // updateGoMod 更新go.mod文件中的module名称
@@ -417,10 +451,33 @@ func replaceFrontPathInYaml(filePath, projectName string) error {
 	return nil
 }
 
-// capitalizeFirst 将字符串首字母大写
-func capitalizeFirst(s string) string {
-	if len(s) == 0 {
-		return s
+func runGitCommand(args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), gitCommandTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", args...)
+	return cmd.CombinedOutput()
+}
+
+func validateProjectName(name string) error {
+	if strings.TrimSpace(name) != name {
+		return fmt.Errorf("不能包含首尾空格")
 	}
-	return strings.ToUpper(s[:1]) + s[1:]
+	if strings.Contains(name, "..") {
+		return fmt.Errorf("不能包含 '..'")
+	}
+	if strings.HasPrefix(name, "/") || strings.HasSuffix(name, "/") {
+		return fmt.Errorf("不能以 '/' 开头或结尾")
+	}
+	if !projectNamePattern.MatchString(name) {
+		return fmt.Errorf("仅支持小写字母、数字、下划线、连字符，支持 '/' 作为层级")
+	}
+	return nil
+}
+
+func formatAST(fset *token.FileSet, file any) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := format.Node(&buf, fset, file); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }

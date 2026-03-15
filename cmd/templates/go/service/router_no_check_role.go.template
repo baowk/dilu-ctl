@@ -14,7 +14,7 @@ func init() {
 func register{{.ClassName}}Router(v1 *gin.RouterGroup) {
 	r := v1.Group("{{.ModuleName}}") //.Use(middleware.JwtHandler()).Use(middleware.PermHandler())
 	{
-		r.POST("", apis.Api{{.ClassName}}.QueryPage)      // 分页查询（使用 POST 支持复杂查询条件）
+		r.POST("page", apis.Api{{.ClassName}}.QueryPage)      // 分页查询（使用 POST 支持复杂查询条件）
 		r.GET("/:id", apis.Api{{.ClassName}}.Get)         // 获取单个资源
 		r.POST("", apis.Api{{.ClassName}}.Create)         // 创建资源
 		r.PUT("/:id", apis.Api{{.ClassName}}.Update)      // 更新资源

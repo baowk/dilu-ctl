@@ -8,6 +8,7 @@ import (
 	"go/format"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -182,10 +183,42 @@ func generateWithGORMGen(db *gorm.DB, tableName, packageName string, force bool)
 }
 
 func generateWithTemplates(db *gorm.DB, tableName, packageName, apiRoot string, force bool) error {
-	// 读取表结构信息
-	tableInfo, err := readTableInfo(db, tableName, packageName, apiRoot)
-	if err != nil {
-		return fmt.Errorf("读取表结构失败：%w", err)
+	// 步骤 1: 先尝试从已生成的 Model 文件中读取字段信息
+	modelPath := filepath.Join("internal", packageName, "repository", "model")
+	modelFile := filepath.Join(modelPath, strings.ReplaceAll(tableName, "_", "")+".gen.go")
+	
+	var tableInfo *TableInfo
+	var err error
+	
+	// 如果 Model 文件存在，尝试从中解析字段类型
+	if _, err = os.Stat(modelFile); err == nil {
+		fmt.Printf("📖 从 Model 文件读取字段信息：%s\n", modelFile)
+		columns, parseErr := parseModelFile(modelFile, tableName, packageName, apiRoot)
+		if parseErr != nil {
+			fmt.Printf("⚠️  解析 Model 文件失败：%v，回退到数据库读取\n", parseErr)
+		} else {
+			// 成功解析，构建 TableInfo
+			tableInfo = &TableInfo{
+				TableName:    tableName,
+				PackageName:  packageName,
+				ClassName:    toClassName(tableName),
+				ModuleName:   strings.ToLower(tableName),
+				ApiRoot:      apiRoot,
+				Columns:      columns,
+				PkGoField:    getPrimaryKeyField(columns),
+				PkType:       getPrimaryKeyType(columns),
+				ProjectName:  genProjectName,
+			}
+		}
+	}
+	
+	// 如果没有从 Model 文件读取成功，则从数据库读取
+	if tableInfo == nil {
+		fmt.Printf("📖 从数据库读取表结构：%s\n", tableName)
+		tableInfo, err = readTableInfo(db, tableName, packageName, apiRoot)
+		if err != nil {
+			return fmt.Errorf("读取表结构失败：%w", err)
+		}
 	}
 
 	// 创建目录
@@ -234,6 +267,7 @@ type TableInfo struct {
 	TBName       string
 	TableComment string
 	PkGoField    string // Primary key Go field name
+	PkType       string // Primary key Go type
 	ApiRoot      string // API root path prefix (e.g., /v1)
 	Columns      []ColumnInfo
 }
@@ -359,18 +393,196 @@ func getColumns(db *gorm.DB, tableName string) ([]ColumnInfo, error) {
 	return columns, nil
 }
 
+// parseModelFile 从 GORM-Gen 生成的 Model 文件中解析字段信息
+func parseModelFile(modelFile, tableName, packageName, apiRoot string) ([]ColumnInfo, error) {
+	// 读取 Model 文件内容
+	content, err := os.ReadFile(modelFile)
+	if err != nil {
+		return nil, fmt.Errorf("读取 Model 文件失败：%w", err)
+	}
+
+	fileContent := string(content)
+
+	// 使用正则表达式提取结构体定义
+	// 匹配：type StructName struct { ... }
+	structRegex := regexp.MustCompile(`type\s+\w+\s+struct\s*\{([^}]+)\}`)
+	structMatches := structRegex.FindStringSubmatch(fileContent)
+	if len(structMatches) < 2 {
+		return nil, fmt.Errorf("未找到结构体定义")
+	}
+
+	structBody := structMatches[1]
+
+	// 提取每个字段的定义
+	// 格式：FieldName GoType `gorm:"..." json:"..."`
+	fieldRegex := regexp.MustCompile(`(\w+)\s+(\S+)\s+` + "`" + `([^` + "`" + `]+)` + "`")
+	fieldMatches := fieldRegex.FindAllStringSubmatch(structBody, -1)
+
+	var columns []ColumnInfo
+	for _, match := range fieldMatches {
+		if len(match) < 4 {
+			continue
+		}
+
+		goField := match[1]
+		goType := match[2]
+		tags := match[3]
+
+		// 跳过内嵌的结构体（如 base.ReqPage）
+		if goField == "base" || strings.Contains(goField, ".") {
+			continue
+		}
+
+		// 解析 gorm tag 获取列名
+		gormTag := extractTag(tags, "gorm")
+		columnName := extractGormColumn(gormTag)
+
+		// 解析 json tag
+		jsonTag := extractTag(tags, "json")
+		jsonField := strings.Split(jsonTag, ",")[0]
+		if jsonField == "-" {
+			continue // 跳过 json:"-" 的字段
+		}
+
+		// 判断是否为主键
+		pk := strings.Contains(strings.ToLower(gormTag), "primarykey") ||
+			strings.Contains(strings.ToLower(gormTag), "primaryKey")
+
+		// 判断是否为 NOT NULL
+		notNull := strings.Contains(strings.ToLower(gormTag), "not null")
+
+		// 判断是否是可编辑字段（排除主键、时间戳、审计字段）
+		isEdit := !pk && 
+			goField != "CreatedAt" && 
+			goField != "UpdatedAt" && 
+			goField != "DeletedAt" &&
+			goField != "CreateBy" &&
+			goField != "UpdateBy"
+
+		// 判断是否是查询字段
+		isQuery := !pk &&
+			goField != "CreatedAt" &&
+			goField != "UpdatedAt" &&
+			goField != "DeletedAt"
+
+		columns = append(columns, ColumnInfo{
+			Name:       columnName,
+			GoField:    goField,
+			GoType:     goType,
+			Type:       extractGormType(gormTag),
+			Comment:    "", // TODO: 从注释中提取
+			Pk:         pk,
+			NotNull:    notNull,
+			IsQuery:    isQuery,
+			IsEdit:     isEdit,
+			IsNil:      !notNull,
+			IsValid:    false,
+			IsZero:     true,
+			QueryType:  "=",
+			JsonField:  jsonField,
+			ColumnName: columnName,
+			ColumnComment: "",
+		})
+	}
+
+	fmt.Printf("✅ 从 Model 文件解析到 %d 个字段\n", len(columns))
+	return columns, nil
+}
+
+// extractTag 从 struct tag 中提取指定 tag 的值
+func extractTag(tags, tagName string) string {
+	tagParts := strings.Split(tags, tagName+":\"")
+	if len(tagParts) < 2 {
+		return ""
+	}
+	value := strings.Split(tagParts[1], "\"")[0]
+	return value
+}
+
+// extractGormColumn 从 gorm tag 中提取 column 名
+func extractGormColumn(gormTag string) string {
+	if gormTag == "" {
+		return ""
+	}
+	
+	// 尝试提取 column:name
+	columnRegex := regexp.MustCompile(`column:(\w+)`)
+	matches := columnRegex.FindStringSubmatch(gormTag)
+	if len(matches) > 1 {
+		return matches[1]
+	}
+	
+	return ""
+}
+
+// extractGormType 从 gorm tag 中提取 type 信息
+func extractGormType(gormTag string) string {
+	if gormTag == "" {
+		return ""
+	}
+	
+	// 尝试提取 type:XXX
+	typeRegex := regexp.MustCompile(`type:([^;]+)`)
+	matches := typeRegex.FindStringSubmatch(gormTag)
+	if len(matches) > 1 {
+		return matches[1]
+	}
+	
+	return ""
+}
+
+// getPrimaryKeyField 获取主键字段的 Go 字段名
+func getPrimaryKeyField(columns []ColumnInfo) string {
+	for _, col := range columns {
+		if col.Pk {
+			return col.GoField
+		}
+	}
+	return "ID"
+}
+
+// getPrimaryKeyType 获取主键字段的 Go 类型
+func getPrimaryKeyType(columns []ColumnInfo) string {
+	for _, col := range columns {
+		if col.Pk {
+			return col.GoType
+		}
+	}
+	return "int32"
+}
+
 func mapDBTypeToGoType(dbType string) string {
 	switch strings.ToUpper(dbType) {
-	case "INT", "INTEGER", "BIGINT", "SMALLINT", "TINYINT":
-		return "int"
+	// 精确整数类型映射
+	case "TINYINT":
+		return "int8"   // 或 uint8，范围 0-255
+	case "SMALLINT":
+		return "int16"  // -32768 到 32767
+	case "INT", "INTEGER":
+		return "int32"  // -2147483648 到 2147483647
+	case "BIGINT":
+		return "int64"  // -9223372036854775808 到 9223372036854775807
+	
+	// 字符串类型
 	case "VARCHAR", "CHAR", "TEXT", "NVARCHAR", "NVARCHAR2":
 		return "string"
+	
+	// 时间类型
 	case "DATETIME", "TIMESTAMP", "DATE":
 		return "time.Time"
+	
+	// 浮点/定点数类型
 	case "DECIMAL", "NUMERIC", "MONEY":
 		return "float64"
+	case "FLOAT", "REAL":
+		return "float32"
+	case "DOUBLE", "DOUBLE PRECISION":
+		return "float64"
+	
+	// 布尔类型
 	case "BOOLEAN", "BIT":
 		return "bool"
+	
 	default:
 		return "string"
 	}

@@ -53,7 +53,7 @@ func (e *{{.ClassName}}Api) QueryPage(c *gin.Context) {
 // @Tags {{.PackageName}}-{{.ClassName}}
 // @Accept application/json
 // @Product application/json
-// @Param id path {{if eq $pkType "string"}}string{{else}}int{{end}} true "记录ID"
+// @Param id path {{if eq $pkType "string"}}string{{else if eq $pkType "int64"}}int64{{else if eq $pkType "int32"}}int32{{else if eq $pkType "int16"}}int16{{else if eq $pkType "int8"}}int8{{else if eq $pkType "uint"}}uint{{else if eq $pkType "uint64"}}uint64{{else if eq $pkType "uint32"}}uint32{{else if eq $pkType "uint16"}}uint16{{else if eq $pkType "uint8"}}uint8{{end}} true "记录ID"
 // @Success 200 {object} base.Resp{data=model.{{.ClassName}}} "{"code": 200, "data": [...]}"
 // @Router {{.ApiRoot}}/{{.PackageName}}/{{.ModuleName}}/{id} [get]
 // @Security Bearer
@@ -98,7 +98,7 @@ func (e *{{.ClassName}}Api) Create(c *gin.Context) {
 // @Tags {{.PackageName}}-{{.ClassName}}
 // @Accept application/json
 // @Product application/json
-// @Param id path {{if eq $pkType "string"}}string{{else}}int{{end}} true "记录 ID"
+// @Param id path {{if eq $pkType "string"}}string{{else if eq $pkType "int64"}}int64{{else if eq $pkType "int32"}}int32{{else if eq $pkType "int16"}}int16{{else if eq $pkType "int8"}}int8{{else if eq $pkType "uint"}}uint{{else if eq $pkType "uint64"}}uint64{{else if eq $pkType "uint32"}}uint32{{else if eq $pkType "uint16"}}uint16{{else if eq $pkType "uint8"}}uint8{{end}} true "记录 ID"
 // @Param data body dto.{{.ClassName}}Dto true "body"
 // @Success 200 {object} base.Resp{data=model.{{.ClassName}}} "{"code": 200, "data": [...]}"
 // @Router {{.ApiRoot}}/{{.PackageName}}/{{.ModuleName}}/{id} [put]
@@ -138,7 +138,7 @@ func (e *{{.ClassName}}Api) Update(c *gin.Context) {
 // @Tags {{.PackageName}}-{{.ClassName}}
 // @Accept application/json
 // @Product application/json
-// @Param id path {{if eq $pkType "string"}}string{{else}}int{{end}} true "记录 ID"
+// @Param id path {{if eq $pkType "string"}}string{{else if eq $pkType "int64"}}int64{{else if eq $pkType "int32"}}int32{{else if eq $pkType "int16"}}int16{{else if eq $pkType "int8"}}int8{{else if eq $pkType "uint"}}uint{{else if eq $pkType "uint64"}}uint64{{else if eq $pkType "uint32"}}uint32{{else if eq $pkType "uint16"}}uint16{{else if eq $pkType "uint8"}}uint8{{end}} true "记录 ID"
 // @Success 200 {object} base.Resp{} "{"code": 200, "data": [...]}"
 // @Router {{.ApiRoot}}/{{.PackageName}}/{{.ModuleName}}/{id} [delete]
 // @Security Bearer
@@ -167,6 +167,12 @@ func parse{{.ClassName}}ID(id string) ({{$pkType}}, error) {
 	{{- else if eq $pkType "int32" }}
 	v, err := strconv.ParseInt(id, 10, 32)
 	return int32(v), err
+	{{- else if eq $pkType "int16" }}
+	v, err := strconv.ParseInt(id, 10, 16)
+	return int16(v), err
+	{{- else if eq $pkType "int8" }}
+	v, err := strconv.ParseInt(id, 10, 8)
+	return int8(v), err
 	{{- else if eq $pkType "uint" }}
 	v, err := strconv.ParseUint(id, 10, 64)
 	return uint(v), err
@@ -176,6 +182,12 @@ func parse{{.ClassName}}ID(id string) ({{$pkType}}, error) {
 	{{- else if eq $pkType "uint32" }}
 	v, err := strconv.ParseUint(id, 10, 32)
 	return uint32(v), err
+	{{- else if eq $pkType "uint16" }}
+	v, err := strconv.ParseUint(id, 10, 16)
+	return uint16(v), err
+	{{- else if eq $pkType "uint8" }}
+	v, err := strconv.ParseUint(id, 10, 8)
+	return uint8(v), err
 	{{- else }}
 	v, err := strconv.Atoi(id)
 	return {{$pkType}}(v), err

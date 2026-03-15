@@ -1,253 +1,128 @@
-# Dilu 脚手架工具
+# dilu-ctl 🚀
 
-[![GitHub](https://img.shields.io/github/license/baowk/dilu-ctl)](https://github.com/baowk/dilu-ctl)
-[![Go Report Card](https://goreportcard.com/badge/github.com/baowk/dilu-ctl)](https://goreportcard.com/report/github.com/baowk/dilu-ctl)
+Dilu 项目快速创建和代码生成工具
 
-这是一个用于快速创建 Dilu 项目的脚手架工具。
+## ✨ 功能特性
 
-GitHub 仓库地址: https://github.com/baowk/dilu-ctl
+1. **快速创建项目** - 从 GitHub 克隆 dilu 或 dilu-all 仓库
+2. **代码生成** - 根据数据库表结构生成模块代码（使用 GORM-Gen）
 
-## 功能特性
+## 📦 安装
 
-- ✅ 通过命令行快速创建 Dilu 项目
-- ✅ 支持选择不同的模板仓库
-- ✅ 智能包名替换（仅替换本地包，保留外部依赖）
-- ✅ 自动生成正确的 go.mod 文件
-- ✅ 自动清理 Git 历史记录
-- ✅ 支持自定义项目输出路径
-- ✅ **支持SSH和HTTPS两种Git协议**
-- ✅ **使用 `-a` 参数时自动创建配套的 admin 项目**
-- ✅ **自动更新 yaml 配置文件中的 front-path 路径**
-- ✅ 智能的错误处理和提示信息
+### 方式一：go install（推荐）
 
-## 安装方式
-
-### 方式一：使用 Go Install（推荐）
 ```bash
 go install github.com/baowk/dilu-ctl@latest
 ```
 
-安装完成后，可直接使用：
-```bash
-dilu-ctl -h
-```
+安装后可执行文件位于 `$GOPATH/bin/dilu-ctl`
 
-### 方式二：从源码编译
+### 方式二：源码编译
+
 ```bash
-# 克隆仓库
-git clone https://github.com/baowk/dilu-ctl.git
 cd dilu-ctl
-
-# 编译
 go build -o dilu-ctl
-
-# 或者安装到 GOPATH
-go install
 ```
 
-### 方式三：直接下载二进制文件
-从 [Releases](https://github.com/baowk/dilu-ctl/releases) 页面下载对应平台的二进制文件。
+## 🎯 命令说明
 
-## 使用方法
-
-### 查看帮助
-```bash
-dilu-ctl -h
-```
-
-### 基本用法
+### 1. 创建项目 (create)
 
 ```bash
-# 使用SSH协议（默认）
-dilu-ctl -n 项目名称
+# 创建基础项目
+dilu-ctl create -n myproject
 
-# 使用HTTPS协议
-dilu-ctl -n 项目名称 --https -u username
+# 创建完整项目（包含 admin 前端）
+dilu-ctl create -n myproject -a
+
+# 使用 HTTPS 协议
+dilu-ctl create -n myproject --https -u username
 ```
 
-### 使用示例
+**参数：**
+- `-n, --name` - 项目名称（必填）
+- `-a, --all` - 使用dili-all 仓库
+- `-o, --output` - 输出路径
+- `--https` - 使用 HTTPS 协议
+- `-u, --username` - Git 用户名
 
-1. **创建基础项目（仅克隆dilu）**：
+### 2. 生成代码 (gen)
+
 ```bash
-dilu-ctl -n myproject
+# MySQL
+dilu-ctl gen \
+  -db sys \
+  -table sys_user \
+  -dns 'root:123456@tcp(localhost:3306)/sys'
+
+# PostgreSQL
+dilu-ctl gen \
+  -db app \
+  -table users \
+  --driver=postgres \
+  --dns='postgres://user:pass@localhost:5432/app'
+
+# SQLite
+dilu-ctl gen \
+  -db data \
+  -table configs \
+  --driver=sqlite \
+  --dns='./data/app.db'
 ```
 
-2. **创建完整项目（克隆dilu-all + admin）**：
+**参数：**
+- `-t, --table` - 表名（必填）
+- `--dns` - 数据库连接字符串（必填）
+- `-d, --db` - 数据库名称
+- `-p, --package` - 包名（默认与 db 一致）
+- `--driver` - 数据库类型：mysql/postgres/sqlite（默认 mysql）
+- `-f, --force` - 覆盖已存在的文件
+- `-P, --project` - 项目根目录路径（默认 .）
+- `--prefix` - API 路径前缀（默认 /v1）
+
+## 🔧 使用流程
+
+### 步骤 1: 创建项目
 ```bash
-dilu-ctl -n myproject -a
+dilu-ctl create -n myproject -a
+cd myproject
 ```
 
-3. **创建基础项目（HTTPS协议）**：
+### 步骤 2: 准备数据库
+```sql
+CREATE DATABASE notice;
+USE notice;
+
+CREATE TABLE message (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(100),
+  content TEXT,
+  created_at DATETIME
+);
+```
+
+### 步骤 3: 生成代码
 ```bash
-dilu-ctl -n myproject --https -u your-github-username
+dilu-ctl gen \
+  -db notice \
+  -table message \
+  -dns 'root:123456@tcp(localhost:3306)/notice'
 ```
 
-4. **创建完整项目（HTTPS协议）**：
-```bash
-dilu-ctl -n myproject -a --https -u your-github-username
-```
+生成的文件：
+- `internal/notice/repository/model/message.gen.go` - Model 层
+- `internal/notice/repository/query/message.gen.go` - Query 层
 
-### 参数说明
+## 📋 注意事项
 
-| 参数 | 说明 | 必填 | 默认值 |
-|------|------|------|--------|
-| `-n` | 指定项目名称 | 是 | 无 |
-| `-a` | 克隆dilu-all和dilu-admin项目 | 否 | false |
-| `-o` | 指定项目输出路径 | 否 | 当前目录(.) |
-| `--https` | 使用HTTPS协议而非SSH | 否 | false |
-| `-u` | Git用户名（HTTPS模式下可选） | 否 | 无 |
-| `-h/-help` | 显示帮助信息 | 否 | false |
+1. gen 命令必须在 dilu 项目根目录下执行
+2. 建议为表和字段添加注释
+3. 使用 `-f` 参数覆盖已生成的文件
+4. 支持 MySQL、PostgreSQL、SQLite 三种数据库
 
-### 项目克隆行为
+## 🛠️ 技术栈
 
-**不使用 `-a` 参数（默认）**：
-- 只克隆主项目：`dilu.git`
-- 适用于简单的后端项目
-
-**使用 `-a` 参数**：
-- 克隆主项目：`dilu-all.git` 
-- 克隆Admin项目：`dilu-admin.git`（命名为 `项目名-admin`）
-- 自动更新配置文件中的路径引用
-- 适用于完整的前后端项目
-
-```
-/path/to/output/
-├── myproject/          # 主项目 (dilu-all)
-│   ├── go.mod
-│   ├── main.go
-│   ├── config.yaml     # front-path 已自动更新
-│   └── ...其他文件
-└── myproject-admin/    # Admin项目 (dilu-admin)
-    ├── go.mod
-    ├── main.go
-    └── ...其他文件
-```
-
-## 工作流程
-
-1. 📂 根据项目名称和输出路径创建新目录
-2. 🔧 根据 `-a` 参数确定要克隆的 Git 仓库
-3. 📥 克隆主项目代码到项目目录
-4. 🔄 如果使用 `-a` 参数，同时克隆 admin 项目
-5. 🔍 递归遍历所有 `.go` 文件进行包名替换
-6. 🔄 替换代码中的类型引用 `Dilu` → `ProjectName`
-7. 📝 更新 `go.mod` 文件中的 module 名称
-8. ⚙️ **扫描并更新所有 yaml 配置文件中的 front-path**
-9. 🗑️ 清理 `.git` 目录（移除原始仓库历史）
-10. ✅ 完成项目初始化
-
-## Git协议选择指南
-
-### SSH协议（推荐）
-**优点：**
-- 安全性高
-- 无需每次输入密码
-- 适合频繁操作
-
-**前提条件：**
-- 需要配置SSH密钥
-- 需要将公钥添加到GitHub账户
-
-**使用方式：**
-```bash
-dilu-ctl -n myproject  # 默认使用SSH
-```
-
-### HTTPS协议
-**优点：**
-- 配置简单
-- 无需SSH密钥
-- 适合临时使用
-
-**缺点：**
-- 需要每次输入用户名密码（除非配置凭证缓存）
-- 安全性相对较低
-
-**使用方式：**
-```bash
-# 基本使用
-dilu-ctl -n myproject --https
-
-# 指定用户名
-dilu-ctl -n myproject --https -u your-github-username
-
-# 配置凭证缓存避免重复输入密码
-git config --global credential.helper store
-```
-
-## 注意事项
-
-⚠️ **重要提醒**：
-- 需要确保系统已安装 Git
-- 项目目录不能已存在
-- 建议项目名称使用小写字母和数字
-- 输出路径会自动创建（如果不存在）
-- 使用 `-a` 参数时会同时创建两个项目目录
-- YAML 配置更新功能仅在使用 `-a` 参数时生效
-
-⚠️ **SSH协议注意事项**：
-- 需要预先配置好SSH密钥
-- 确保公钥已添加到GitHub账户
-
-⚠️ **HTTPS协议注意事项**：
-- 可能需要多次输入用户名密码
-- 建议配置凭证缓存：`git config --global credential.helper store`
-- 使用 `-u` 参数可以指定GitHub用户名
-
-## 仓库地址
-
-根据协议不同，使用的仓库地址也会相应变化：
-
-### SSH协议（默认）
-- **基础模板**：`git@github.com:baowk/dilu.git`
-- **完整模板**：`git@github.com:baowk/dilu-all.git`
-- **Admin模板**：`git@github.com:baowk/dilu-admin.git`
-
-### HTTPS协议
-- **基础模板**：`https://github.com/baowk/dilu.git`
-- **完整模板**：`https://github.com/baowk/dilu-all.git`
-- **Admin模板**：`https://github.com/baowk/dilu-admin.git`
-
-## 故障排除
-
-### Git 相关问题
-```bash
-# 检查Git是否安装
-git --version
-
-# 测试SSH连接（SSH协议）
-ssh -T git@github.com
-
-# 配置HTTPS凭证缓存（HTTPS协议）
-git config --global credential.helper store
-```
-
-### 权限问题
-```bash
-# 确保对目标目录有写权限
-ls -la /path/to/target/directory
-```
-
-### 网络问题
-如果克隆失败，可以尝试：
-1. 检查网络连接
-2. 验证GitHub SSH密钥配置
-3. 使用HTTPS方式克隆（需要修改源码）
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-1. Fork 本仓库
-2. 创建您的特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交您的更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启一个 Pull Request
-
-## License
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
-
-## 开发者信息
-
-如有问题或建议，请提交 Issue 或 Pull Request。
+- Go 1.21+
+- Cobra CLI Framework
+- GORM v1.25+
+- GORM-Gen v0.3.20

@@ -2,10 +2,28 @@
 
 Dilu 项目快速创建和代码生成工具
 
-## ✨ 功能特性
+## 📚 功能特性
 
-1. **快速创建项目** - 从 GitHub 克隆 dilu 或 dilu-all 仓库
-2. **代码生成** - 根据数据库表结构生成模块代码（使用 GORM-Gen）
+### 1. `create` - 创建新项目
+从模板生成完整的项目骨架，支持交互式配置。
+
+### 2. `gen` - 生成模块代码
+**核心功能**：结合 GORM-Gen + 模板系统，生成完整的 CRUD 代码。
+
+**生成内容：**
+1. **Model/Query 层** - 使用 GORM-Gen 自动生成（类型安全）✅
+2. **Service/DTO 层** - 使用模板生成（业务逻辑）✅
+3. **API 层** - 使用模板生成（HTTP 接口）✅
+4. **Router 层** - 使用模板生成（路由配置）✅
+
+**技术栈：**
+- **GORM-Gen**：强大的 ORM 代码生成器，自动生成 Model 和 Query 对象
+- **Go Template**：灵活的模板引擎，生成 Service、API、Router 层代码
+
+**支持的数据库：**
+- ✅ MySQL
+- ✅ PostgreSQL  
+- ✅ SQLite
 
 ## 📦 安装
 
@@ -49,32 +67,40 @@ dilu-ctl create -n myproject --https -u username
 ### 2. 生成代码 (gen)
 
 ```bash
-# MySQL
+# MySQL 示例
 dilu-ctl gen \
-  -db sys \
-  -table sys_user \
-  -dns 'root:123456@tcp(localhost:3306)/sys'
+  --dns='root:123456@tcp(localhost:3306)/sys' \
+  -t sys_user \
+  --driver=mysql \
+  -p sys
 
-# PostgreSQL
+# PostgreSQL 示例
 dilu-ctl gen \
-  -db app \
-  -table users \
+  --dns='postgres://user:pass@localhost:5432/app' \
+  -t users \
   --driver=postgres \
-  --dns='postgres://user:pass@localhost:5432/app'
+  -p app
 
-# SQLite
+# SQLite 示例
 dilu-ctl gen \
-  -db data \
-  -table configs \
+  --dns='./data/app.db' \
+  -t configs \
   --driver=sqlite \
-  --dns='./data/app.db'
+  -p data
+
+# 使用短标志（推荐）
+dilu-ctl gen \
+  -D 'root:123456@tcp(localhost:3306)/sys' \
+  -t sys_user \
+  -p sys \
+  --driver=mysql \
+  -f
 ```
 
 **参数：**
 - `-t, --table` - 表名（必填）
-- `--dns` - 数据库连接字符串（必填）
-- `-d, --db` - 数据库名称
-- `-p, --package` - 包名（默认与 db 一致）
+- `-d, --dns` - 数据库连接字符串（必填）
+- `-p, --package` - 包名（可选，默认从表名推断）
 - `--driver` - 数据库类型：mysql/postgres/sqlite（默认 mysql）
 - `-f, --force` - 覆盖已存在的文件
 - `-P, --project` - 项目根目录路径（默认 .）

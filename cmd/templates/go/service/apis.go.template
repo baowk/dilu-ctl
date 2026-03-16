@@ -2,9 +2,9 @@ package apis
 
 import (
 	"strconv"
-	"{{.ProjectName}}/internal/{{.PackageName}}/repository/model"
-	"{{.ProjectName}}/internal/{{.PackageName}}/service"
-	"{{.ProjectName}}/internal/{{.PackageName}}/service/dto"
+	"{{.ProjectName}}/internal/modules/{{.PackageName}}/repository/model"
+	"{{.ProjectName}}/internal/modules/{{.PackageName}}/service"
+	"{{.ProjectName}}/internal/modules/{{.PackageName}}/service/dto"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/copier"

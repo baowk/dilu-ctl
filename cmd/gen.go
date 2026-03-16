@@ -80,7 +80,8 @@ func runGenModule(cmd *cobra.Command, args []string) error {
 
 	// 如果未指定包名，使用表名作为默认值（简单处理）
 	if genPackageName == "" {
-		genPackageName = strings.Split(genTableName, "_")[0]
+		baseTableName := baseTableName(genTableName)
+		genPackageName = strings.Split(baseTableName, "_")[0]
 	}
 
 	// 解析项目路径
@@ -129,18 +130,22 @@ func runGenModule(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("连接数据库失败：%w", err)
 	}
 
+	rawTableName := genTableName
+	baseTable := baseTableName(genTableName)
+	className := toClassName(baseTable)
+
 	// 步骤 1: 使用 GORM-Gen 生成 Model 和 Query 层
-	if err := generateWithGORMGen(db, genTableName, genPackageName, genForce); err != nil {
+	if err := generateWithGORMGen(db, rawTableName, className, genPackageName, genForce); err != nil {
 		return fmt.Errorf("GORM-Gen 生成失败：%w", err)
 	}
 
 	// 步骤 2: 使用模板生成Service、API、Router 层
-	if err := generateWithTemplates(db, genTableName, genPackageName, genApiPrefix, genForce); err != nil {
+	if err := generateWithTemplates(db, rawTableName, baseTable, genPackageName, className, genApiPrefix, genForce); err != nil {
 		return fmt.Errorf("模板生成失败：%w", err)
 	}
 
 	fmt.Printf("\n✅ 代码生成成功！\n")
-	fmt.Printf("📁 生成路径：%s/internal/%s/\n", absProjectPath, genPackageName)
+	fmt.Printf("📁 生成路径：%s/internal/modules/%s/\n", absProjectPath, genPackageName)
 	fmt.Printf("📄 已生成:\n")
 	fmt.Printf("   - repository/model/%s.gen.go (GORM-Gen)\n", genTableName)
 	fmt.Printf("   - repository/query/%s.gen.go (GORM-Gen)\n", genTableName)
@@ -148,15 +153,15 @@ func runGenModule(cmd *cobra.Command, args []string) error {
 	fmt.Printf("   - service/%s_service.go (模板)\n", genTableName)
 	fmt.Printf("   - apis/%s.go (模板)\n", genTableName)
 	fmt.Printf("   - router/%s.go (模板)\n", genTableName)
-	fmt.Printf("   - router/router.go (路由配置模板)\n", genTableName)
+	fmt.Printf("   - router/router.go (路由配置模板)\n")
 
 	return nil
 }
 
-func generateWithGORMGen(db *gorm.DB, tableName, packageName string, force bool) error {
+func generateWithGORMGen(db *gorm.DB, tableName, className, packageName string, force bool) error {
 	// 创建输出目录
-	modelPath := filepath.Join("internal", packageName, "repository", "model")
-	queryPath := filepath.Join("internal", packageName, "repository", "query")
+	modelPath := filepath.Join("internal", "modules", packageName, "repository", "model")
+	queryPath := filepath.Join("internal", "modules", packageName, "repository", "query")
 
 	if err := os.MkdirAll(modelPath, 0755); err != nil {
 		return fmt.Errorf("创建 model 目录失败：%w", err)
@@ -180,7 +185,6 @@ func generateWithGORMGen(db *gorm.DB, tableName, packageName string, force bool)
 	g.UseDB(db)
 
 	// 生成 Model 和 Query
-	className := toClassName(tableName)
 	g.ApplyBasic(g.GenerateModelAs(tableName, className))
 
 	// 执行生成
@@ -189,29 +193,26 @@ func generateWithGORMGen(db *gorm.DB, tableName, packageName string, force bool)
 	return nil
 }
 
-func generateWithTemplates(db *gorm.DB, tableName, packageName, apiRoot string, force bool) error {
+func generateWithTemplates(db *gorm.DB, rawTableName, baseTableName, packageName, className, apiRoot string, force bool) error {
 	// 步骤 1: 从已生成的 Model 文件中读取字段信息
-	modelPath := filepath.Join("internal", packageName, "repository", "model")
-	modelFile := filepath.Join(modelPath, strings.ReplaceAll(tableName, "_", "")+".gen.go")
+	modelPath := filepath.Join("internal", "modules", packageName, "repository", "model")
 
-	if _, err := os.Stat(modelFile); err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("未找到 Model 文件：%s，请先确保 gorm-gen 已成功生成（gen 第一步）", modelFile)
-		}
-		return fmt.Errorf("读取 Model 文件失败：%w", err)
+	modelFile, err := resolveModelFilePath(modelPath, rawTableName, baseTableName)
+	if err != nil {
+		return err
 	}
 
 	fmt.Printf("📖 从 Model 文件读取字段信息：%s\n", modelFile)
-	columns, parseErr := parseModelFile(modelFile, tableName, packageName, apiRoot)
+	columns, parseErr := parseModelFile(modelFile, baseTableName, packageName, apiRoot)
 	if parseErr != nil {
 		return fmt.Errorf("解析 Model 文件失败：%w。请检查 gorm-gen 产物是否完整", parseErr)
 	}
 
 	tableInfo := &TableInfo{
-		TableName:   tableName,
+		TableName:   baseTableName,
 		PackageName: packageName,
-		ClassName:   toClassName(tableName),
-		ModuleName:  strings.ToLower(tableName),
+		ClassName:   className,
+		ModuleName:  strings.ToLower(baseTableName),
 		ApiRoot:     apiRoot,
 		Columns:     columns,
 		PkGoField:   getPrimaryKeyField(columns),
@@ -221,10 +222,10 @@ func generateWithTemplates(db *gorm.DB, tableName, packageName, apiRoot string, 
 
 	// 创建目录
 	dirs := []string{
-		filepath.Join("internal", packageName, "service", "dto"),
-		filepath.Join("internal", packageName, "service"),
-		filepath.Join("internal", packageName, "apis"),
-		filepath.Join("internal", packageName, "router"),
+		filepath.Join("internal", "modules", packageName, "service", "dto"),
+		filepath.Join("internal", "modules", packageName, "service"),
+		filepath.Join("internal", "modules", packageName, "apis"),
+		filepath.Join("internal", "modules", packageName, "router"),
 	}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -239,11 +240,11 @@ func generateWithTemplates(db *gorm.DB, tableName, packageName, apiRoot string, 
 		output   string
 		subDir   string // Template subdirectory (default: "go/service")
 	}{
-		{"DTO", "dto.go.template", filepath.Join("internal", packageName, "service", "dto", tableName+".go"), "go/service"},
-		{"Service", "service.go.template", filepath.Join("internal", packageName, "service", tableName+"_service.go"), "go/service"},
-		{"API", "apis.go.template", filepath.Join("internal", packageName, "apis", tableName+".go"), "go/service"},
-		{"Router", "router_no_check_role.go.template", filepath.Join("internal", packageName, "router", tableName+".go"), "go/service"},
-		{"RouterConfig", "router.template", filepath.Join("internal", packageName, "router", "router.go"), "go/router"},
+		{"DTO", "dto.go.template", filepath.Join("internal", "modules", packageName, "service", "dto", baseTableName+".go"), "go/service"},
+		{"Service", "service.go.template", filepath.Join("internal", "modules", packageName, "service", baseTableName+"_service.go"), "go/service"},
+		{"API", "apis.go.template", filepath.Join("internal", "modules", packageName, "apis", baseTableName+".go"), "go/service"},
+		{"Router", "router_no_check_role.go.template", filepath.Join("internal", "modules", packageName, "router", baseTableName+".go"), "go/service"},
+		{"RouterConfig", "router.template", filepath.Join("internal", "modules", packageName, "router", "router.go"), "go/router"},
 	}
 
 	for _, gen := range generators {
@@ -752,7 +753,7 @@ func connectDB(driver, dsn string) (*gorm.DB, error) {
 }
 
 func isValidDiluProject(projectPath string) bool {
-	requiredDirs := []string{"internal", "cmd", "common"}
+	requiredDirs := []string{"internal", "cmd", filepath.Join("internal", "common")}
 	for _, dir := range requiredDirs {
 		path := filepath.Join(projectPath, dir)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -780,7 +781,10 @@ func inferDriverFromDSN(dsn string) string {
 	case strings.HasPrefix(lower, "postgres://"),
 		strings.HasPrefix(lower, "postgresql://"):
 		return "postgres"
+	case strings.Contains(lower, "dbname=") && strings.Contains(lower, "host="):
+		return "postgres"
 	case strings.HasPrefix(lower, "sqlite:"),
+		strings.HasPrefix(lower, "file:"),
 		strings.HasSuffix(lower, ".db"),
 		strings.HasSuffix(lower, ".sqlite"),
 		strings.HasSuffix(lower, ".sqlite3"):
@@ -788,6 +792,32 @@ func inferDriverFromDSN(dsn string) string {
 	default:
 		return "mysql"
 	}
+}
+
+func baseTableName(tableName string) string {
+	if idx := strings.LastIndex(tableName, "."); idx >= 0 && idx < len(tableName)-1 {
+		return tableName[idx+1:]
+	}
+	return tableName
+}
+
+func resolveModelFilePath(modelPath, rawTableName, baseTable string) (string, error) {
+	candidates := []string{
+		filepath.Join(modelPath, baseTable+".gen.go"),
+		filepath.Join(modelPath, rawTableName+".gen.go"),
+	}
+	if rawTableName != strings.ReplaceAll(rawTableName, ".", "_") {
+		candidates = append(candidates, filepath.Join(modelPath, strings.ReplaceAll(rawTableName, ".", "_")+".gen.go"))
+	}
+
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
+	}
+
+	return "", fmt.Errorf("未找到 Model 文件（尝试路径：%s）。请先确保 gorm-gen 已成功生成（gen 第一步）",
+		strings.Join(candidates, ", "))
 }
 
 // getProjectName 从 go.mod 文件中提取项目名称

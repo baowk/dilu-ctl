@@ -23,17 +23,17 @@ const gitCommandTimeout = 2 * time.Minute
 var projectNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*(/[a-z0-9][a-z0-9_-]*)*$`)
 
 var (
-	createProjectName   string
-	createUseAll        bool
-	createOutputPath    string
-	createUseHTTPS      bool
-	createGitUsername   string
-	
+	createProjectName string
+	createUseAll      bool
+	createOutputPath  string
+	createUseHTTPS    bool
+	createGitUsername string
+
 	createProjectCmd = &cobra.Command{
 		Use:   "create",
 		Short: "创建新的 dilu 项目",
-		Long: `从 GitHub 克隆 dilu 或 dilu-all仓库，并创建新的项目`,
-		RunE: runCreateProject,
+		Long:  `从 GitHub 克隆 dilu 或 dilu-all仓库，并创建新的项目`,
+		RunE:  runCreateProject,
 	}
 )
 
@@ -43,7 +43,7 @@ func init() {
 	createProjectCmd.Flags().StringVarP(&createOutputPath, "output", "o", ".", "项目输出路径")
 	createProjectCmd.Flags().BoolVar(&createUseHTTPS, "https", false, "使用 HTTPS 协议而非 SSH")
 	createProjectCmd.Flags().StringVarP(&createGitUsername, "username", "u", "", "Git 用户名（HTTPS 模式下可选）")
-	
+
 	createProjectCmd.MarkFlagRequired("name")
 }
 
@@ -191,7 +191,7 @@ func runCreateProject(cmd *cobra.Command, args []string) error {
 		fmt.Println("💡 提示：如需避免重复输入密码，可配置 Git 凭证缓存:")
 		fmt.Println("   git config --global credential.helper store")
 	}
-	
+
 	return nil
 }
 

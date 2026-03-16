@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
-	"{{.ProjectName}}/internal/{{.PackageName}}/repository/model"
-	"{{.ProjectName}}/internal/{{.PackageName}}/repository/query"
-	"{{.ProjectName}}/internal/{{.PackageName}}/service/dto"
+	"{{.ProjectName}}/internal/modules/{{.PackageName}}/repository/model"
+	"{{.ProjectName}}/internal/modules/{{.PackageName}}/repository/query"
+	"{{.ProjectName}}/internal/modules/{{.PackageName}}/service/dto"
 	"reflect"
 	"strings"
 

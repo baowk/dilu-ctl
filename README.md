@@ -65,6 +65,7 @@ dilu-ctl create -n myproject --https -u username
 - `-u, --username` - Git 用户名
 
 ### 2. 生成代码 (gen)
+进入项目根目录后再执行（例如：`cd myproject`）。
 
 ```bash
 # MySQL 示例（driver 可省略，自动推断）
@@ -132,8 +133,8 @@ dilu-ctl gen \
 ```
 
 生成的文件：
-- `internal/notice/repository/model/message.gen.go` - Model 层
-- `internal/notice/repository/query/message.gen.go` - Query 层
+- `internal/modules/notice/repository/model/message.gen.go` - Model 层
+- `internal/modules/notice/repository/query/message.gen.go` - Query 层
 
 ## 📋 注意事项
 

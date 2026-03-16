@@ -1,7 +1,7 @@
 package router
 
 import (
-	"{{.ProjectName}}/internal/{{.PackageName}}/apis"
+	"{{.ProjectName}}/internal/modules/{{.PackageName}}/apis"
 	//"{{.ProjectName}}/common/middleware"
 	"github.com/gin-gonic/gin"
 )

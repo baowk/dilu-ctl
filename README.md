@@ -67,33 +67,29 @@ dilu-ctl create -n myproject --https -u username
 ### 2. 生成代码 (gen)
 
 ```bash
-# MySQL 示例
+# MySQL 示例（driver 可省略，自动推断）
 dilu-ctl gen \
   --dns='root:123456@tcp(localhost:3306)/sys' \
   -t sys_user \
-  --driver=mysql \
   -p sys
 
 # PostgreSQL 示例
 dilu-ctl gen \
   --dns='postgres://user:pass@localhost:5432/app' \
   -t users \
-  --driver=postgres \
   -p app
 
 # SQLite 示例
 dilu-ctl gen \
-  --dns='./data/app.db' \
+  --dns='sqlite:./data/app.db' \
   -t configs \
-  --driver=sqlite \
   -p data
 
 # 使用短标志（推荐）
 dilu-ctl gen \
-  -D 'root:123456@tcp(localhost:3306)/sys' \
+  -d 'root:123456@tcp(localhost:3306)/sys' \
   -t sys_user \
   -p sys \
-  --driver=mysql \
   -f
 ```
 
@@ -101,7 +97,7 @@ dilu-ctl gen \
 - `-t, --table` - 表名（必填）
 - `-d, --dns` - 数据库连接字符串（必填）
 - `-p, --package` - 包名（可选，默认从表名推断）
-- `--driver` - 数据库类型：mysql/postgres/sqlite（默认 mysql）
+- `--driver` - 数据库类型：mysql/postgres/sqlite（可选，自动推断）
 - `-f, --force` - 覆盖已存在的文件
 - `-P, --project` - 项目根目录路径（默认 .）
 - `--prefix` - API 路径前缀（默认 /v1）
@@ -130,9 +126,9 @@ CREATE TABLE message (
 ### 步骤 3: 生成代码
 ```bash
 dilu-ctl gen \
-  -db notice \
-  -table message \
-  -dns 'root:123456@tcp(localhost:3306)/notice'
+  -t message \
+  -p notice \
+  -d 'root:123456@tcp(localhost:3306)/notice'
 ```
 
 生成的文件：
@@ -141,10 +137,11 @@ dilu-ctl gen \
 
 ## 📋 注意事项
 
-1. gen 命令必须在 dilu 项目根目录下执行
+1. 项目目录必须包含 `go.mod`（用于获取 module 名称）
 2. 建议为表和字段添加注释
 3. 使用 `-f` 参数覆盖已生成的文件
 4. 支持 MySQL、PostgreSQL、SQLite 三种数据库
+5. Service/DTO/API 字段与类型以 GORM-Gen 的 Model 为准
 
 ## 🛠️ 技术栈
 

@@ -24,14 +24,14 @@ import (
 var templateFS embed.FS
 
 var (
-	genTableName    string
-	genPackageName  string
-	genDriver       string
-	genDsn          string
-	genForce        bool
-	genProjectPath  string
-	genApiPrefix    string
-	genProjectName  string // 动态项目名称
+	genTableName   string
+	genPackageName string
+	genDriver      string
+	genDsn         string
+	genForce       bool
+	genProjectPath string
+	genApiPrefix   string
+	genProjectName string // 动态项目名称
 
 	genCmd = &cobra.Command{
 		Use:   "gen",
@@ -74,6 +74,10 @@ func runGenModule(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("必须指定数据库连接字符串 (-dns)")
 	}
 
+	if !cmd.Flags().Changed("driver") {
+		genDriver = inferDriverFromDSN(genDsn)
+	}
+
 	// 如果未指定包名，使用表名作为默认值（简单处理）
 	if genPackageName == "" {
 		genPackageName = strings.Split(genTableName, "_")[0]
@@ -111,9 +115,12 @@ func runGenModule(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("切换到项目目录失败：%w", err)
 	}
 
-	// 验证是否为 dilu 项目
+	// 验证项目基础结构（仅要求 go.mod）
+	if err := ensureGoMod(absProjectPath); err != nil {
+		return err
+	}
 	if !isValidDiluProject(absProjectPath) {
-		return fmt.Errorf("不是有效的 dilu 项目目录")
+		fmt.Printf("⚠️  项目结构与 dilu 模板不完全一致，但仍继续生成\n")
 	}
 
 	// 连接数据库
@@ -183,42 +190,33 @@ func generateWithGORMGen(db *gorm.DB, tableName, packageName string, force bool)
 }
 
 func generateWithTemplates(db *gorm.DB, tableName, packageName, apiRoot string, force bool) error {
-	// 步骤 1: 先尝试从已生成的 Model 文件中读取字段信息
+	// 步骤 1: 从已生成的 Model 文件中读取字段信息
 	modelPath := filepath.Join("internal", packageName, "repository", "model")
 	modelFile := filepath.Join(modelPath, strings.ReplaceAll(tableName, "_", "")+".gen.go")
-	
-	var tableInfo *TableInfo
-	var err error
-	
-	// 如果 Model 文件存在，尝试从中解析字段类型
-	if _, err = os.Stat(modelFile); err == nil {
-		fmt.Printf("📖 从 Model 文件读取字段信息：%s\n", modelFile)
-		columns, parseErr := parseModelFile(modelFile, tableName, packageName, apiRoot)
-		if parseErr != nil {
-			fmt.Printf("⚠️  解析 Model 文件失败：%v，回退到数据库读取\n", parseErr)
-		} else {
-			// 成功解析，构建 TableInfo
-			tableInfo = &TableInfo{
-				TableName:    tableName,
-				PackageName:  packageName,
-				ClassName:    toClassName(tableName),
-				ModuleName:   strings.ToLower(tableName),
-				ApiRoot:      apiRoot,
-				Columns:      columns,
-				PkGoField:    getPrimaryKeyField(columns),
-				PkType:       getPrimaryKeyType(columns),
-				ProjectName:  genProjectName,
-			}
+
+	if _, err := os.Stat(modelFile); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("未找到 Model 文件：%s，请先确保 gorm-gen 已成功生成（gen 第一步）", modelFile)
 		}
+		return fmt.Errorf("读取 Model 文件失败：%w", err)
 	}
-	
-	// 如果没有从 Model 文件读取成功，则从数据库读取
-	if tableInfo == nil {
-		fmt.Printf("📖 从数据库读取表结构：%s\n", tableName)
-		tableInfo, err = readTableInfo(db, tableName, packageName, apiRoot)
-		if err != nil {
-			return fmt.Errorf("读取表结构失败：%w", err)
-		}
+
+	fmt.Printf("📖 从 Model 文件读取字段信息：%s\n", modelFile)
+	columns, parseErr := parseModelFile(modelFile, tableName, packageName, apiRoot)
+	if parseErr != nil {
+		return fmt.Errorf("解析 Model 文件失败：%w。请检查 gorm-gen 产物是否完整", parseErr)
+	}
+
+	tableInfo := &TableInfo{
+		TableName:   tableName,
+		PackageName: packageName,
+		ClassName:   toClassName(tableName),
+		ModuleName:  strings.ToLower(tableName),
+		ApiRoot:     apiRoot,
+		Columns:     columns,
+		PkGoField:   getPrimaryKeyField(columns),
+		PkType:      getPrimaryKeyType(columns),
+		ProjectName: genProjectName,
 	}
 
 	// 创建目录
@@ -452,9 +450,9 @@ func parseModelFile(modelFile, tableName, packageName, apiRoot string) ([]Column
 		notNull := strings.Contains(strings.ToLower(gormTag), "not null")
 
 		// 判断是否是可编辑字段（排除主键、时间戳、审计字段）
-		isEdit := !pk && 
-			goField != "CreatedAt" && 
-			goField != "UpdatedAt" && 
+		isEdit := !pk &&
+			goField != "CreatedAt" &&
+			goField != "UpdatedAt" &&
 			goField != "DeletedAt" &&
 			goField != "CreateBy" &&
 			goField != "UpdateBy"
@@ -466,21 +464,21 @@ func parseModelFile(modelFile, tableName, packageName, apiRoot string) ([]Column
 			goField != "DeletedAt"
 
 		columns = append(columns, ColumnInfo{
-			Name:       columnName,
-			GoField:    goField,
-			GoType:     goType,
-			Type:       extractGormType(gormTag),
-			Comment:    "", // TODO: 从注释中提取
-			Pk:         pk,
-			NotNull:    notNull,
-			IsQuery:    isQuery,
-			IsEdit:     isEdit,
-			IsNil:      !notNull,
-			IsValid:    false,
-			IsZero:     true,
-			QueryType:  "=",
-			JsonField:  jsonField,
-			ColumnName: columnName,
+			Name:          columnName,
+			GoField:       goField,
+			GoType:        goType,
+			Type:          extractGormType(gormTag),
+			Comment:       "", // TODO: 从注释中提取
+			Pk:            pk,
+			NotNull:       notNull,
+			IsQuery:       isQuery,
+			IsEdit:        isEdit,
+			IsNil:         !notNull,
+			IsValid:       false,
+			IsZero:        true,
+			QueryType:     "=",
+			JsonField:     jsonField,
+			ColumnName:    columnName,
 			ColumnComment: "",
 		})
 	}
@@ -504,14 +502,14 @@ func extractGormColumn(gormTag string) string {
 	if gormTag == "" {
 		return ""
 	}
-	
+
 	// 尝试提取 column:name
 	columnRegex := regexp.MustCompile(`column:(\w+)`)
 	matches := columnRegex.FindStringSubmatch(gormTag)
 	if len(matches) > 1 {
 		return matches[1]
 	}
-	
+
 	return ""
 }
 
@@ -520,14 +518,14 @@ func extractGormType(gormTag string) string {
 	if gormTag == "" {
 		return ""
 	}
-	
+
 	// 尝试提取 type:XXX
 	typeRegex := regexp.MustCompile(`type:([^;]+)`)
 	matches := typeRegex.FindStringSubmatch(gormTag)
 	if len(matches) > 1 {
 		return matches[1]
 	}
-	
+
 	return ""
 }
 
@@ -555,22 +553,22 @@ func mapDBTypeToGoType(dbType string) string {
 	switch strings.ToUpper(dbType) {
 	// 精确整数类型映射
 	case "TINYINT":
-		return "int8"   // 或 uint8，范围 0-255
+		return "int8" // 或 uint8，范围 0-255
 	case "SMALLINT":
-		return "int16"  // -32768 到 32767
+		return "int16" // -32768 到 32767
 	case "INT", "INTEGER":
-		return "int32"  // -2147483648 到 2147483647
+		return "int32" // -2147483648 到 2147483647
 	case "BIGINT":
-		return "int64"  // -9223372036854775808 到 9223372036854775807
-	
+		return "int64" // -9223372036854775808 到 9223372036854775807
+
 	// 字符串类型
 	case "VARCHAR", "CHAR", "TEXT", "NVARCHAR", "NVARCHAR2":
 		return "string"
-	
+
 	// 时间类型
 	case "DATETIME", "TIMESTAMP", "DATE":
 		return "time.Time"
-	
+
 	// 浮点/定点数类型
 	case "DECIMAL", "NUMERIC", "MONEY":
 		return "float64"
@@ -578,11 +576,11 @@ func mapDBTypeToGoType(dbType string) string {
 		return "float32"
 	case "DOUBLE", "DOUBLE PRECISION":
 		return "float64"
-	
+
 	// 布尔类型
 	case "BOOLEAN", "BIT":
 		return "bool"
-	
+
 	default:
 		return "string"
 	}
@@ -597,7 +595,7 @@ func toGoFieldName(name string) string {
 		"json": true, "yaml": true, "csv": true, "html": true,
 		"css": true, "js": true, "ts": true, "go": true,
 	}
-	
+
 	parts := strings.Split(name, "_")
 	fieldName := ""
 	for _, part := range parts {
@@ -645,14 +643,14 @@ func toCamelCase(name string) string {
 		"css": "css", "js": "js", "ts": "ts", "go": "go",
 		"dns": "dns", "ip": "ip", "tcp": "tcp", "udp": "udp",
 	}
-	
+
 	parts := strings.Split(name, "_")
 	result := ""
 	for i, part := range parts {
 		if len(part) == 0 {
 			continue
 		}
-		
+
 		lowerPart := strings.ToLower(part)
 		// 如果是特殊缩写词，使用全小写
 		if special, ok := specialAbbreviations[lowerPart]; ok {
@@ -765,18 +763,45 @@ func isValidDiluProject(projectPath string) bool {
 	return true
 }
 
+func ensureGoMod(projectPath string) error {
+	goModPath := filepath.Join(projectPath, "go.mod")
+	if _, err := os.Stat(goModPath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("未找到 go.mod，无法确定项目模块名")
+		}
+		return fmt.Errorf("读取 go.mod 失败：%w", err)
+	}
+	return nil
+}
+
+func inferDriverFromDSN(dsn string) string {
+	lower := strings.ToLower(strings.TrimSpace(dsn))
+	switch {
+	case strings.HasPrefix(lower, "postgres://"),
+		strings.HasPrefix(lower, "postgresql://"):
+		return "postgres"
+	case strings.HasPrefix(lower, "sqlite:"),
+		strings.HasSuffix(lower, ".db"),
+		strings.HasSuffix(lower, ".sqlite"),
+		strings.HasSuffix(lower, ".sqlite3"):
+		return "sqlite"
+	default:
+		return "mysql"
+	}
+}
+
 // getProjectName 从 go.mod 文件中提取项目名称
 func getProjectName(projectPath string) (string, error) {
 	goModPath := filepath.Join(projectPath, "go.mod")
-	
+
 	data, err := os.ReadFile(goModPath)
 	if err != nil {
 		return "", fmt.Errorf("无法读取 go.mod 文件：%w", err)
 	}
-	
+
 	content := string(data)
 	lines := strings.Split(content, "\n")
-	
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "module ") {
@@ -788,7 +813,7 @@ func getProjectName(projectPath string) (string, error) {
 			return moduleName, nil
 		}
 	}
-	
+
 	return "", fmt.Errorf("未在 go.mod 中找到 module 声明")
 }
 

@@ -94,6 +94,11 @@ dilu-ctl gen \
   -f
 ```
 
+### 3. 查看版本 (version)
+```bash
+dilu-ctl version
+```
+
 **参数：**
 - `-t, --table` - 表名（必填）
 - `-d, --dns` - 数据库连接字符串（必填）

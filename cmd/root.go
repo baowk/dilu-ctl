@@ -26,7 +26,9 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.Version = Version
 	// 添加全局标志
 	rootCmd.AddCommand(createProjectCmd)
 	rootCmd.AddCommand(genCmd)
+	rootCmd.AddCommand(versionCmd)
 }

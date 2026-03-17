@@ -23,6 +23,17 @@ var Ser{{.ClassName}} = {{.ClassName}}Service{
 {{- range .Columns }}{{- if .Pk }}{{- $pkType = .GoType -}}{{- end -}}{{- end }}
 
 func (s *{{.ClassName}}Service) QueryPage(req dto.{{.ClassName}}GetPageReq, list *[]model.{{.ClassName}}, total *int64, size, offset int) error {
+	// 限制分页大小，防止内存耗尽
+	const maxPageSize = 500
+	if size <= 0 {
+		size = 20
+	} else if size > maxPageSize {
+		size = maxPageSize
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
 	q := query.Use(s.DB())
 	t := q.{{.ClassName}}
 	db := t.WithContext(context.Background())
@@ -63,6 +74,9 @@ func (s *{{.ClassName}}Service) QueryPage(req dto.{{.ClassName}}GetPageReq, list
 	*total = count
 
 	order := strings.ToLower(req.SortOrder)
+	if order != "asc" && order != "desc" {
+		order = "desc"
+	}
 	if order == "asc" {
 		db = db.Order(t.{{.PkGoField}}.Asc())
 	} else {

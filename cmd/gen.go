@@ -84,6 +84,11 @@ func runGenModule(cmd *cobra.Command, args []string) error {
 		genPackageName = strings.Split(baseTableName, "_")[0]
 	}
 
+	// 校验包名，防止路径遍历
+	if err := validatePackageName(genPackageName); err != nil {
+		return err
+	}
+
 	// 解析项目路径
 	absProjectPath, err := filepath.Abs(genProjectPath)
 	if err != nil {
@@ -97,7 +102,7 @@ func runGenModule(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("开始生成代码...\n")
-	fmt.Printf("DSN: %s\n", genDsn)
+	fmt.Printf("DSN: %s\n", maskDSN(genDsn))
 	fmt.Printf("表名：%s\n", genTableName)
 	fmt.Printf("包名：%s\n", genPackageName)
 	fmt.Printf("数据库类型：%s\n", genDriver)
@@ -845,6 +850,51 @@ func getProjectName(projectPath string) (string, error) {
 	}
 
 	return "", fmt.Errorf("未在 go.mod 中找到 module 声明")
+}
+
+// validatePackageName 校验包名，防止路径遍历攻击
+func validatePackageName(name string) error {
+	if name == "" {
+		return fmt.Errorf("包名不能为空")
+	}
+	if strings.Contains(name, "..") || strings.Contains(name, "/") || strings.Contains(name, "\\") {
+		return fmt.Errorf("包名 '%s' 包含非法字符（不允许 .. / \\）", name)
+	}
+	matched := regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`).MatchString(name)
+	if !matched {
+		return fmt.Errorf("包名 '%s' 格式无效，只允许字母、数字和下划线，且必须以字母开头", name)
+	}
+	return nil
+}
+
+// maskDSN 对 DSN 中的密码进行脱敏处理
+func maskDSN(dsn string) string {
+	// MySQL format: user:password@tcp(host:port)/db
+	if idx := strings.Index(dsn, "@"); idx > 0 {
+		userPart := dsn[:idx]
+		if colonIdx := strings.Index(userPart, ":"); colonIdx >= 0 {
+			return userPart[:colonIdx+1] + "***" + dsn[idx:]
+		}
+	}
+	// PostgreSQL format: postgres://user:password@host/db
+	if strings.Contains(dsn, "://") {
+		parts := strings.SplitN(dsn, "://", 2)
+		if len(parts) == 2 {
+			rest := parts[1]
+			if atIdx := strings.Index(rest, "@"); atIdx > 0 {
+				userPart := rest[:atIdx]
+				if colonIdx := strings.Index(userPart, ":"); colonIdx >= 0 {
+					return parts[0] + "://" + userPart[:colonIdx+1] + "***" + rest[atIdx:]
+				}
+			}
+		}
+	}
+	// PostgreSQL key=value format: password=xxx
+	if strings.Contains(dsn, "password=") {
+		re := regexp.MustCompile(`password=\S+`)
+		return re.ReplaceAllString(dsn, "password=***")
+	}
+	return dsn
 }
 
 func toClassName(tableName string) string {

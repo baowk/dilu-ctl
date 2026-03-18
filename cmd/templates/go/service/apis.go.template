@@ -27,7 +27,7 @@ var Api{{.ClassName}} = {{.ClassName}}Api{}
 // @Product application/json
 // @Param data body dto.{{.ClassName}}GetPageReq true "body"
 // @Success 200 {object} base.Resp{data=base.PageResp{list=[]model.{{.ClassName}}}} "{"code": 200, "data": [...]}"
-// @Router {{.ApiRoot}}/{{.PackageName}}/{{.ModuleName}}/page [post]
+// @Router {{.RoutePrefix}}/page [post]
 // @Security Bearer
 func (e *{{.ClassName}}Api) QueryPage(c *gin.Context) {
 	var req dto.{{.ClassName}}GetPageReq
@@ -55,7 +55,7 @@ func (e *{{.ClassName}}Api) QueryPage(c *gin.Context) {
 // @Product application/json
 // @Param id path {{if eq $pkType "string"}}string{{else if eq $pkType "int64"}}int64{{else if eq $pkType "int32"}}int32{{else if eq $pkType "int16"}}int16{{else if eq $pkType "int8"}}int8{{else if eq $pkType "uint"}}uint{{else if eq $pkType "uint64"}}uint64{{else if eq $pkType "uint32"}}uint32{{else if eq $pkType "uint16"}}uint16{{else if eq $pkType "uint8"}}uint8{{end}} true "记录ID"
 // @Success 200 {object} base.Resp{data=model.{{.ClassName}}} "{"code": 200, "data": [...]}"
-// @Router {{.ApiRoot}}/{{.PackageName}}/{{.ModuleName}}/{id} [get]
+// @Router {{.RoutePrefix}}/{id} [get]
 // @Security Bearer
 func (e *{{.ClassName}}Api) Get(c *gin.Context) {
 	id, err := parse{{.ClassName}}ID(c.Param("id"))
@@ -77,7 +77,7 @@ func (e *{{.ClassName}}Api) Get(c *gin.Context) {
 // @Product application/json
 // @Param data body dto.{{.ClassName}}Dto true "body"
 // @Success 200 {object} base.Resp{data=model.{{.ClassName}}} "{"code": 200, "data": [...]}"
-// @Router {{.ApiRoot}}/{{.PackageName}}/{{.ModuleName}} [post]
+// @Router {{.RoutePrefix}} [post]
 // @Security Bearer
 func (e *{{.ClassName}}Api) Create(c *gin.Context) {
 	var req dto.{{.ClassName}}Dto
@@ -101,7 +101,7 @@ func (e *{{.ClassName}}Api) Create(c *gin.Context) {
 // @Param id path {{if eq $pkType "string"}}string{{else if eq $pkType "int64"}}int64{{else if eq $pkType "int32"}}int32{{else if eq $pkType "int16"}}int16{{else if eq $pkType "int8"}}int8{{else if eq $pkType "uint"}}uint{{else if eq $pkType "uint64"}}uint64{{else if eq $pkType "uint32"}}uint32{{else if eq $pkType "uint16"}}uint16{{else if eq $pkType "uint8"}}uint8{{end}} true "记录 ID"
 // @Param data body dto.{{.ClassName}}Dto true "body"
 // @Success 200 {object} base.Resp{data=model.{{.ClassName}}} "{"code": 200, "data": [...]}"
-// @Router {{.ApiRoot}}/{{.PackageName}}/{{.ModuleName}}/{id} [put]
+// @Router {{.RoutePrefix}}/{id} [put]
 // @Security Bearer
 func (e *{{.ClassName}}Api) Update(c *gin.Context) {
 	id, err := parse{{.ClassName}}ID(c.Param("id"))
@@ -140,7 +140,7 @@ func (e *{{.ClassName}}Api) Update(c *gin.Context) {
 // @Product application/json
 // @Param id path {{if eq $pkType "string"}}string{{else if eq $pkType "int64"}}int64{{else if eq $pkType "int32"}}int32{{else if eq $pkType "int16"}}int16{{else if eq $pkType "int8"}}int8{{else if eq $pkType "uint"}}uint{{else if eq $pkType "uint64"}}uint64{{else if eq $pkType "uint32"}}uint32{{else if eq $pkType "uint16"}}uint16{{else if eq $pkType "uint8"}}uint8{{end}} true "记录 ID"
 // @Success 200 {object} base.Resp{} "{"code": 200, "data": [...]}"
-// @Router {{.ApiRoot}}/{{.PackageName}}/{{.ModuleName}}/{id} [delete]
+// @Router {{.RoutePrefix}}/{id} [delete]
 // @Security Bearer
 func (e *{{.ClassName}}Api) Del(c *gin.Context) {
 	id, err := parse{{.ClassName}}ID(c.Param("id"))

@@ -213,12 +213,23 @@ func generateWithTemplates(db *gorm.DB, rawTableName, baseTableName, packageName
 		return fmt.Errorf("解析 Model 文件失败：%w。请检查 gorm-gen 产物是否完整", parseErr)
 	}
 
+	// When PackageName == table name, don't create sub-module to avoid double path
+	// e.g., /api/articles/page instead of /api/articles/articles/page
+	moduleName := strings.ToLower(baseTableName)
+	routePrefix := apiRoot + "/" + packageName
+	if moduleName != packageName {
+		routePrefix += "/" + moduleName
+	} else {
+		moduleName = "" // avoid double path in router
+	}
+
 	tableInfo := &TableInfo{
 		TableName:   baseTableName,
 		PackageName: packageName,
 		ClassName:   className,
-		ModuleName:  strings.ToLower(baseTableName),
+		ModuleName:  moduleName,
 		ApiRoot:     apiRoot,
+		RoutePrefix: routePrefix,
 		Columns:     columns,
 		PkGoField:   getPrimaryKeyField(columns),
 		PkType:      getPrimaryKeyType(columns),
@@ -231,6 +242,7 @@ func generateWithTemplates(db *gorm.DB, rawTableName, baseTableName, packageName
 		filepath.Join("internal", "modules", packageName, "service"),
 		filepath.Join("internal", "modules", packageName, "apis"),
 		filepath.Join("internal", "modules", packageName, "router"),
+		filepath.Join("cmd", "start"),
 	}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -250,6 +262,7 @@ func generateWithTemplates(db *gorm.DB, rawTableName, baseTableName, packageName
 		{"API", "apis.go.template", filepath.Join("internal", "modules", packageName, "apis", baseTableName+".go"), "go/service"},
 		{"Router", "router_no_check_role.go.template", filepath.Join("internal", "modules", packageName, "router", baseTableName+".go"), "go/service"},
 		{"RouterConfig", "router.template", filepath.Join("internal", "modules", packageName, "router", "router.go"), "go/router"},
+		{"CmdApi", "cmd_api.template", filepath.Join("cmd", "start", packageName+".go"), "go/router"},
 	}
 
 	for _, gen := range generators {
@@ -264,7 +277,7 @@ func generateWithTemplates(db *gorm.DB, rawTableName, baseTableName, packageName
 type TableInfo struct {
 	ProjectName  string // Dynamic project name from go.mod
 	PackageName  string
-	ModuleName   string // Module name same as package name
+	ModuleName   string // Sub-module name (empty when PackageName == table name, to avoid double path)
 	ClassName    string
 	TableName    string
 	ConfDbName   string
@@ -273,6 +286,7 @@ type TableInfo struct {
 	PkGoField    string // Primary key Go field name
 	PkType       string // Primary key Go type
 	ApiRoot      string // API root path prefix (e.g., /v1)
+	RoutePrefix  string // Full route prefix for swagger/vue (e.g., "/v1/articles" or "/v1/blog/articles")
 	Columns      []ColumnInfo
 }
 
@@ -315,10 +329,18 @@ func readTableInfo(db *gorm.DB, tableName, packageName, apiRoot string) (*TableI
 		}
 	}
 
+	moduleName := strings.ToLower(tableName)
+	routePrefix := apiRoot + "/" + packageName
+	if moduleName != packageName {
+		routePrefix += "/" + moduleName
+	} else {
+		moduleName = ""
+	}
+
 	return &TableInfo{
 		ProjectName:  genProjectName, // Use global project name from go.mod
 		PackageName:  packageName,
-		ModuleName:   packageName, // Module name same as package name
+		ModuleName:   moduleName,
 		ClassName:    className,
 		TableName:    tableName,
 		ConfDbName:   packageName,
@@ -326,6 +348,7 @@ func readTableInfo(db *gorm.DB, tableName, packageName, apiRoot string) (*TableI
 		TableComment: "", // TODO: 读取表注释
 		PkGoField:    pkGoField,
 		ApiRoot:      apiRoot,
+		RoutePrefix:  routePrefix,
 		Columns:      columns,
 	}, nil
 }

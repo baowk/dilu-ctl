@@ -11,7 +11,11 @@ func init() {
 
 // 默认需登录认证的路由
 func register{{.ClassName}}Router(v1 *gin.RouterGroup) {
+{{- if .ModuleName }}
 	r := v1.Group("{{.ModuleName}}") //.Use(middleware.JwtHandler()).Use(middleware.PermHandler())
+{{- else }}
+	r := v1 //.Use(middleware.JwtHandler()).Use(middleware.PermHandler())
+{{- end }}
 	{
 		r.POST("page", apis.Api{{.ClassName}}.QueryPage)      // 分页查询（使用 POST 支持复杂查询条件）
 		r.GET("/:id", apis.Api{{.ClassName}}.Get)         // 获取单个资源

@@ -1,16 +1,16 @@
 import { http } from "@/utils/http";
 import { Result, PageResult } from "@/api/common";
-//import { {{.ClassName}} } from "@/api/{{.PackageName}}/{{.ModuleName}}.d";
+//import { {{.ClassName}} } from "@/api/{{.PackageName}}/{{.TableName}}.d";
 
-const baseURL = "{{.ApiRoot}}";
+const baseURL = "{{.RoutePrefix}}";
 
-//Api 
+//Api
 
 /** 获取{{.TableComment}}管理列表 */
 export const get{{.ClassName}}Page = (data?: object) => {
   return http.request<Result<PageResult<{{.ClassName}}>>>(
     "post",
-    "{{.ApiRoot}}/{{.PackageName}}/{{.ModuleName}}/page",
+    `${baseURL}/page`,
     {
       data
     }
@@ -20,28 +20,28 @@ export const get{{.ClassName}}Page = (data?: object) => {
 /** 获取{{.TableComment}} */
 export const get{{.ClassName}} = (id: number | string) => {
   const safeId = encodeURIComponent(String(id));
-  return http.request<Result<{{.ClassName}}>>("get", `${baseURL}/{{.PackageName}}/{{.ModuleName}}/${safeId}`);
+  return http.request<Result<{{.ClassName}}>>("get", `${baseURL}/${safeId}`);
 };
 
 /** 创建{{.TableComment}} */
 export const create{{.ClassName}} = (data?: object) => {
-  return http.request<Result<{{.ClassName}}>>("post", "{{.ApiRoot}}/{{.PackageName}}/{{.ModuleName}}/create", {
+  return http.request<Result<{{.ClassName}}>>("post", `${baseURL}`, {
     data
   });
 };
 
 /** 更新{{.TableComment}} */
-export const update{{.ClassName}} = (data?: object) => {
-  return http.request<Result<{{.ClassName}}>>("post", "{{.ApiRoot}}/{{.PackageName}}/{{.ModuleName}}/update",{
+export const update{{.ClassName}} = (id: number | string, data?: object) => {
+  const safeId = encodeURIComponent(String(id));
+  return http.request<Result<{{.ClassName}}>>("put", `${baseURL}/${safeId}`, {
     data
   });
 };
 
 /** 删除{{.TableComment}} */
-export const del{{.ClassName}} = (data?: object) => {
-  return http.request<Result<{{.ClassName}}>>("post", "{{.ApiRoot}}/{{.PackageName}}/{{.ModuleName}}/del",{
-    data
-  });
+export const del{{.ClassName}} = (id: number | string) => {
+  const safeId = encodeURIComponent(String(id));
+  return http.request<Result<{{.ClassName}}>>("delete", `${baseURL}/${safeId}`);
 };
 
 //Model

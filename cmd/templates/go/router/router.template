@@ -1,7 +1,6 @@
 package router
 
 import (
-	"{{.ProjectName}}/common/consts"
 	"github.com/gin-gonic/gin"
 )
 
@@ -17,7 +16,7 @@ func InitRouter(r *gin.Engine) {
 // noCheckRoleRouter 无需认证的路由
 func noCheckRoleRouter(r *gin.Engine) {
 	// 可根据业务需求来设置接口版本
-	v := r.Group(consts.ApiRoot + "/{{.PackageName}}")
+	v := r.Group("{{.ApiRoot}}/{{.PackageName}}")
 
 	for _, f := range routerNoCheckRole {
 		f(v)

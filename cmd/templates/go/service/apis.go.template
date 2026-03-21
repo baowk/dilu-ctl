@@ -38,8 +38,8 @@ func (e *{{.ClassName}}Api) QueryPage(c *gin.Context) {
 	list := make([]model.{{.ClassName}}, 0, req.GetSize())
 	var total int64
 
-	if req.SortOrder == "" {
-		req.SortOrder = "desc"
+	if req.OrderBy == "" {
+		req.OrderBy = "desc"
 	}
 
 	if err := service.Ser{{.ClassName}}.QueryPage(req, &list, &total, req.GetSize(), req.GetOffset()); err != nil {

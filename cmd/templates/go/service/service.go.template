@@ -73,7 +73,7 @@ func (s *{{.ClassName}}Service) QueryPage(req dto.{{.ClassName}}GetPageReq, list
 	}
 	*total = count
 
-	order := strings.ToLower(req.SortOrder)
+	order := strings.ToLower(req.OrderBy)
 	if order != "asc" && order != "desc" {
 		order = "desc"
 	}

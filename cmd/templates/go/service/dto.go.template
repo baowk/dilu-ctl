@@ -37,7 +37,7 @@ type {{.ClassName}}GetPageReq struct {
 {{- end }}
 {{- $x := .Pk -}}
 {{- if ($x) }}
-	SortOrder  string `json:"-" query:"type:order;column:{{.ColumnName}}"`
+	OrderBy  string `json:"-" query:"type:order;column:{{.ColumnName}}"`
 {{- end -}}
 {{- end }}
 }
